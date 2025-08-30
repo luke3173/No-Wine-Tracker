@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>No Wine Tracker — Milestones & Treats</title>
+<style>
+  :root { --bg:#f7f7fb; --card:#ffffff; --ink:#1f2430; --muted:#6b7280; --accent:#4f46e5; --ok:#16a34a; --warn:#ef4444; --ring:#e5e7eb; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; color:var(--ink); background:var(--bg); }
+  .wrap { max-width: 940px; margin: 24px auto; padding: 0 16px 40px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  h1 { font-size: 22px; margin:0; }
+  .btn { border:1px solid var(--ring); background:var(--card); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background:var(--accent); color:white; border-color:transparent; }
+  .btn.ok { background:var(--ok); color:#fff; border-color:transparent; }
+  .grid { display:grid; grid-template-columns: repeat(7, 1fr); gap:6px; }
+  .card { background:var(--card); border:1px solid var(--ring); border-radius:14px; padding:16px; }
+  .kpi { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin: 12px 0 20px; }
+  .k { background:var(--card); border:1px solid var(--ring); border-radius:14px; padding:14px; text-align:center; }
+  .k big { display:block; font-size: 26px; font-weight:800; margin-top:4px; }
+  .monthbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .navbtn { background:transparent; border:none; font-size:22px; cursor:pointer; padding:6px 10px; border-radius:8px; }
+  .navbtn:focus { outline: 2px solid var(--accent); }
+  .dow { color:var(--muted); text-transform: uppercase; font-size:12px; text-align:center; }
+  .day { position:relative; aspect-ratio:1/1; border:1px solid var(--ring); border-radius:12px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:#fff; }
+  .day.muted { background:#fafafa; color:#9ca3af; }
+  .day.today { outline: 2px solid var(--accent); outline-offset:-2px; }
+  .day.done { background:#ecfdf5; border-color:#bbf7d0; color:#065f46; font-weight:700; }
+  .day.missed { background:#fff1f2; border-color:#fecdd3; color:#9f1239; }
+  .legend { display:flex; gap:10px; font-size:12px; color:var(--muted); margin-top:10px; align-items:center; flex-wrap:wrap; }
+  .pill { display:inline-flex; align-items:center; gap:6px; }
+  .dot { width:14px; height:14px; border-radius:4px; border:1px solid var(--ring); background:#fff; }
+  .dot.done { background:#ecfdf5; border-color:#bbf7d0; }
+  .dot.missed { background:#fff1f2; border-color:#fecdd3; }
+  .settings { display:flex; gap:10px; flex-wrap:wrap; }
+  dialog { border:none; border-radius:16px; padding:0; width:min(720px, 92vw); }
+  .modal { padding:18px; }
+  .field { display:flex; gap:10px; margin-bottom:10px; align-items:center; }
+  .field input, .field textarea { width:100%; padding:10px; border:1px solid var(--ring); border-radius:10px; background:#fff; }
+  .milestones { display:grid; grid-template-columns: 120px 1fr auto; gap:8px; align-items:center; }
+  .tag { font-size:12px; color:var(--muted); }
+  .footer { margin-top:16px; display:flex; gap:10px; justify-content:flex-end; }
+  .toast { position: fixed; left:50%; transform:translateX(-50%); bottom:24px; background:var(--ink); color:#fff; padding:12px 16px; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.2); display:none; z-index:1000; }
+  .celebrate { position:fixed; inset:0; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Daily No Wine Tracker</h1>
+    <div class="settings">
+      <button class="btn" id="btnSettings">Milestones & settings</button>
+      <button class="btn" id="btnExport">Export</button>
+      <button class="btn" id="btnImport">Import</button>
+      <button class="btn" id="btnReset" title="Clear all progress">Reset</button>
+    </div>
+  </header>
+
+  <div class="kpi">
+    <div class="k"><span class="tag">Today</span><big id="todayStatus">Not set</big></div>
+    <div class="k"><span class="tag">Current streak</span><big id="streak">0</big></div>
+    <div class="k"><span class="tag">Total dry days</span><big id="total">0</big></div>
+  </div>
+
+  <div class="card">
+    <div class="monthbar">
+      <button class="navbtn" id="prevMonth" aria-label="Previous month">‹</button>
+      <div id="monthLabel" style="font-weight:800;"></div>
+      <button class="navbtn" id="nextMonth" aria-label="Next month">›</button>
+    </div>
+    <div class="grid" id="dowRow"></div>
+    <div class="grid" id="calendar"></div>
+    <div class="legend">
+      <span class="pill"><span class="dot done"></span> No wine</span>
+      <span class="pill"><span class="dot missed"></span> Missed</span>
+      <span class="pill"><span class="dot"></span> Not set</span>
+    </div>
+  </div>
+
+  <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button class="btn ok" id="markToday">Mark today as no wine</button>
+    <button class="btn" id="clearToday">Clear today</button>
+    <div style="flex:1"></div>
+    <div class="tag" id="nextMilestone"></div>
+  </div>
+</div>
+
+<canvas class="celebrate" id="celebrate"></canvas>
+<div class="toast" id="toast"></div>
+
+<dialog id="modal">
+  <div class="modal">
+    <h2 style="margin:0 0 8px;">Milestones & Settings</h2>
+    <p class="tag" style="margin:0 0 14px;">Set which streak lengths trigger a treat and what the treat is.</p>
+    <div id="milestoneList" class="milestones"></div>
+    <div class="field">
+      <input id="newDays" type="number" min="1" placeholder="Days e.g. 45" />
+      <input id="newTreat" type="text" placeholder="Treat e.g. Picnic at the beach" />
+      <button class="btn" id="addMilestone">Add</button>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--ring); margin:12px 0;">
+    <div class="field">
+      <label style="width:220px;">Name to show</label>
+      <input id="profileName" type="text" placeholder="e.g. Tess" />
+    </div>
+    <div class="footer">
+      <button class="btn" id="closeModal">Close</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  const storeKey = "noWineTracker_v1";
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => Array.from(document.querySelectorAll(sel));
+  const today = new Date();
+  let viewYear = today.getFullYear(), viewMonth = today.getMonth(); // 0-11
+
+  const defaultData = {
+    name: "",
+    marks: {}, // "YYYY-MM-DD" -> "done" | "missed"
+    milestones: [
+      { days: 3,  treat: "Breakfast in bed" },
+      { days: 7,  treat: "Movie night, your pick" },
+      { days: 14, treat: "Dinner at your favorite place" },
+      { days: 21, treat: "Spa evening at home" },
+      { days: 30, treat: "Day out somewhere pretty" },
+      { days: 60, treat: "A special gift from me" },
+      { days: 90, treat: "Weekend getaway planning" }
+    ]
+  };
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(storeKey);
+      if (!raw) return { ...defaultData };
+      const data = JSON.parse(raw);
+      // merge in any new defaults
+      if (!data.milestones || !Array.isArray(data.milestones)) data.milestones = [...defaultData.milestones];
+      if (!data.marks) data.marks = {};
+      if (typeof data.name !== "string") data.name = "";
+      return data;
+    } catch { return { ...defaultData }; }
+  }
+  function save() { localStorage.setItem(storeKey, JSON.stringify(state)); }
+
+  let state = load();
+
+  // Helpers
+  const fmt = (d) => d.toISOString().slice(0,10);
+  function ymd(y,m,day){ const d = new Date(y,m,day); d.setHours(12); return fmt(d); }
+  function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+  function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
+  function isSameDate(a,b){ return startOfDay(a).getTime() === startOfDay(b).getTime(); }
+
+  function render() {
+    $("#monthLabel").textContent = new Date(viewYear, viewMonth, 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+
+    // DOW header
+    const dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const dowRow = $("#dowRow");
+    dowRow.innerHTML = "";
+    dow.forEach(d => {
+      const el = document.createElement("div"); el.textContent = d; el.className = "dow"; dowRow.appendChild(el);
+    });
+
+    // Calendar grid
+    const cal = $("#calendar");
+    cal.innerHTML = "";
+
+    const first = new Date(viewYear, viewMonth, 1);
+    const firstIdx = (first.getDay() + 6) % 7; // Monday = 0
+    const dim = daysInMonth(viewYear, viewMonth);
+
+    // leading blanks from previous month
+    for (let i=0;i<firstIdx;i++){
+      const el = document.createElement("div");
+      el.className = "day muted";
+      cal.appendChild(el);
+    }
+
+    for (let day=1; day<=dim; day++){
+      const el = document.createElement("button");
+      el.className = "day";
+      el.setAttribute("aria-label", `Day ${day}`);
+      el.textContent = day;
+      const dateStr = ymd(viewYear, viewMonth, day);
+      const mark = state.marks[dateStr]; // undefined | "done" | "missed"
+
+      if (mark === "done") el.classList.add("done");
+      if (mark === "missed") el.classList.add("missed");
+      if (isSameDate(new Date(viewYear, viewMonth, day), new Date())) el.classList.add("today");
+
+      el.addEventListener("click", () => cycleDay(dateStr));
+      cal.appendChild(el);
+    }
+
+    updateKPIs();
+    updateNextMilestone();
+    renderMilestones();
+  }
+
+  function cycleDay(dateStr){
+    const curr = state.marks[dateStr];
+    if (!curr)      state.marks[dateStr] = "done";      // empty -> done
+    else if (curr === "done") state.marks[dateStr] = "missed";    // done -> missed
+    else if (curr === "missed") delete state.marks[dateStr];      // missed -> empty
+    save();
+    render();
+  }
+
+  function computeStreak() {
+    // consecutive "done" days up to today
+    let streak = 0;
+    let d = new Date();
+    d.setHours(12);
+    while (true){
+      const key = fmt(d);
+      if (state.marks[key] === "done") { streak += 1; d.setDate(d.getDate() - 1); }
+      else break;
+    }
+    return streak;
+  }
+
+  function totalDone(){
+    return Object.values(state.marks).filter(v => v === "done").length;
+  }
+
+  function updateKPIs(){
+    $("#streak").textContent = computeStreak();
+    $("#total").textContent = totalDone();
+    const key = fmt(new Date());
+    const mark = state.marks[key];
+    $("#todayStatus").textContent = mark === "done" ? "No wine ✔" : mark === "missed" ? "Missed" : "Not set";
+  }
+
+  function updateNextMilestone(){
+    const s = computeStreak();
+    const sorted = [...state.milestones].sort((a,b)=>a.days-b.days);
+    const next = sorted.find(m => m.days > s);
+    const hit = sorted.find(m => m.days === s && s > 0);
+    const name = state.name || "You";
+
+    if (hit){
+      toast(`${name} just hit ${hit.days} days. Treat: ${hit.treat}`);
+      confetti();
+    }
+
+    $("#nextMilestone").textContent = next
+      ? `Next treat at ${next.days} days: ${next.treat}`
+      : `Top milestone reached. You can add more in settings.`;
+  }
+
+  // Toast
+  let toastTimer;
+  function toast(msg){
+    const t = $("#toast");
+    t.textContent = msg;
+    t.style.display = "block";
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.style.display = "none", 3500);
+  }
+
+  // Confetti
+  function confetti(){
+    const canvas = $("#celebrate");
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width = window.innerWidth;
+    const h = canvas.height = window.innerHeight;
+    const parts = Array.from({length: 160}, ()=>({
+      x: Math.random()*w, y: -20 - Math.random()*h*0.5,
+      r: 4 + Math.random()*6, vy: 2 + Math.random()*3, vx: -2 + Math.random()*4, rot: Math.random()*Math.PI
+    }));
+
+    let t0 = 0;
+    function step(ts){
+      if (!t0) t0 = ts;
+      const dt = (ts - t0)/1000;
+      t0 = ts;
+      ctx.clearRect(0,0,w,h);
+      parts.forEach(p=>{
+        p.vy += 0.02;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += 0.1;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = ["#4f46e5","#16a34a","#f59e0b","#ef4444","#06b6d4"][Math.floor(Math.random()*5)];
+        ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r);
+        ctx.restore();
+      });
+      if (parts.some(p=>p.y < h+30)) requestAnimationFrame(step);
+      else ctx.clearRect(0,0,w,h);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // Settings modal
+  const modal = $("#modal");
+  $("#btnSettings").addEventListener("click", ()=> { $("#profileName").value = state.name || ""; modal.showModal(); renderMilestones(); });
+  $("#closeModal").addEventListener("click", ()=> { state.name = $("#profileName").value.trim(); save(); modal.close(); render(); });
+
+  function renderMilestones(){
+    const host = $("#milestoneList");
+    host.innerHTML = "";
+    const sorted = [...state.milestones].sort((a,b)=>a.days - b.days);
+    sorted.forEach((m, idx)=>{
+      const days = document.createElement("input"); days.type="number"; days.min="1"; days.value = m.days; days.style.width="100%";
+      const treat = document.createElement("input"); treat.type="text"; treat.value = m.treat;
+      const del = document.createElement("button"); del.className="btn"; del.textContent="Remove";
+      const rowDays = document.createElement("div"); rowDays.appendChild(days);
+      const rowTreat = document.createElement("div"); rowTreat.appendChild(treat);
+      const rowDel = document.createElement("div"); rowDel.appendChild(del);
+      host.appendChild(rowDays); host.appendChild(rowTreat); host.appendChild(rowDel);
+
+      days.addEventListener("change", () => { m.days = Math.max(1, parseInt(days.value||"1",10)); save(); updateNextMilestone(); });
+      treat.addEventListener("input", () => { m.treat = treat.value; save(); updateNextMilestone(); });
+      del.addEventListener("click", () => {
+        state.milestones = state.milestones.filter(x => !(x.days===m.days && x.treat===m.treat));
+        save(); renderMilestones(); updateNextMilestone();
+      });
+    });
+  }
+
+  $("#addMilestone").addEventListener("click", ()=>{
+    const d = parseInt($("#newDays").value||"0",10);
+    const t = $("#newTreat").value.trim();
+    if (!d || !t) { toast("Enter both days and a treat"); return; }
+    state.milestones.push({ days: d, treat: t });
+    $("#newDays").value = ""; $("#newTreat").value = "";
+    save(); renderMilestones(); updateNextMilestone(); toast("Milestone added");
+  });
+
+  // Month navigation
+  $("#prevMonth").addEventListener("click", ()=>{ viewMonth--; if(viewMonth<0){viewMonth=11; viewYear--;} render(); });
+  $("#nextMonth").addEventListener("click", ()=>{ viewMonth++; if(viewMonth>11){viewMonth=0; viewYear++;} render(); });
+
+  // Quick actions
+  $("#markToday").addEventListener("click", ()=>{ state.marks[fmt(new Date())] = "done"; save(); render(); });
+  $("#clearToday").addEventListener("click", ()=>{ delete state.marks[fmt(new Date())]; save(); render(); });
+
+  // Export / Import / Reset
+  $("#btnExport").addEventListener("click", ()=>{
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "no-wine-tracker-backup.json"; a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $("#btnImport").addEventListener("click", ()=>{
+    const inp = document.createElement("input"); inp.type="file"; inp.accept="application/json";
+    inp.onchange = e => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(reader.result);
+          if (!obj || typeof obj !== "object") throw new Error();
+          state = { ...defaultData, ...obj, marks: obj.marks || {}, milestones: Array.isArray(obj.milestones)? obj.milestones : defaultData.milestones };
+          save(); render(); toast("Import complete");
+        } catch { toast("Import failed"); }
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  });
+
+  $("#btnReset").addEventListener("click", ()=>{
+    if (confirm("Clear all progress and settings")) {
+      state = { ...defaultData };
+      save(); render(); toast("Reset complete");
+    }
+  });
+
+  // Init month view to current month
+  render();
+})();
+</script>
+</body>
+</html>
